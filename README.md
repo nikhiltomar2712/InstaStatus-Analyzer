@@ -46,5 +46,9 @@ Always respect rate limits, obtain consent when analyzing non‑public data, and
 git clone https://github.com/yourusername/InstaStatus-Analyzer.git
 cd InstaStatus-Analyzer
 python -m venv venv
+
+bash
+
+poetry install
 source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
