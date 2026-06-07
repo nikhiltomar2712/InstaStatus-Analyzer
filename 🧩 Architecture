@@ -1,0 +1,11 @@
+src/
+├── auth.py          # Instagrapi session handling, multi‑account
+├── fetcher.py       # Data collection (followers, posts, stories)
+├── analyzer.py      # Metrics calculation, growth trends
+├── bot_detector.py  # ML / rule‑based bot detection
+├── exporter.py      # CSV, JSON, PDF generation
+├── dashboard.py     # Streamlit web app
+├── cli.py           # Typer CLI
+├── api.py           # FastAPI (optional)
+├── rate_limiter.py  # Decorator for API calls
+└── utils.py         # Helpers, proxy, logging
