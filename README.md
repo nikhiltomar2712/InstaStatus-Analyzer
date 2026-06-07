@@ -43,7 +43,7 @@ Always respect rate limits, obtain consent when analyzing non‑public data, and
 ### Using pip
 
 ```bash
-git clone https://github.com/yourusername/InstaStatus-Analyzer.git
+git clone https://github.com/nikhiltomar2712/InstaStatus-Analyzer.git
 cd InstaStatus-Analyzer
 python -m venv venv
 
