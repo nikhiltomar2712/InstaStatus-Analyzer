@@ -2,8 +2,8 @@
 
 **Comprehensive Instagram account analysis: real vs bot followers, engagement metrics, content performance, and more.**
 
-[![Stars](https://img.shields.io/github/stars/yourusername/InstaStatus-Analyzer?style=social)](https://github.com/yourusername/InstaStatus-Analyzer)
-[![Forks](https://img.shields.io/github/forks/yourusername/InstaStatus-Analyzer?style=social)](https://github.com/yourusername/InstaStatus-Analyzer)
+[![Stars](https://img.shields.io/github/stars/nikhiltomar2712/InstaStatus-Analyzer?style=social)](https://github.com/nikhiltomar2712/InstaStatus-Analyzer)
+[![Forks](https://img.shields.io/github/forks/nikhiltomar2712/InstaStatus-Analyzer?style=social)](https://github.com/nikhiltomar2712/InstaStatus-Analyzer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
@@ -123,7 +123,7 @@ src/
 Pull requests are welcome! Please read CONTRIBUTING.md first.
 
 📄 License
-MIT © [Your Name]
+MIT © [Nikhil Tomar]
 
 text
 
@@ -161,7 +161,7 @@ text
 name = "instastatus-analyzer"
 version = "0.1.0"
 description = "Instagram Account Intelligence – real vs bot followers, engagement, exports."
-authors = ["Your Name <you@example.com>"]
+authors = ["Nikhil Tomar <nikhiltomarsan@gmail.com.com>"]
 license = "MIT"
 readme = "README.md"
 
