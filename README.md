@@ -49,20 +49,22 @@ python -m venv venv
 
 source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
+```
+```
 bash
 
 poetry install
+```
 
 Environment Variables
 Copy .env.example to .env and fill in your credentials (optional for public data only).
-
+```
 🧪 Quick Start
 CLI
 bash
 # Analyze any public account
 python -m src.cli analyze --username "instagram" --export csv
-
+```
 # Batch analysis
 python scripts/batch_analysis.py --input accounts.txt
 Streamlit Dashboard
@@ -98,16 +100,6 @@ csv – full follower list with metadata
 json – structured for API consumption
 
 pdf – professional report (via ReportLab)
-
-📸 Screenshots (describe)
-CLI in action
-https://docs/cli_screenshot.png
-
-Streamlit Dashboard
-https://docs/dashboard_screenshot.png
-
-PDF Report example
-https://docs/pdf_report.png
 
 🐳 Docker
 bash
