@@ -6,9 +6,10 @@ We love your input! Please read these guidelines before submitting a PR.
 
 1. Fork the repo
 2. Clone your fork
-3. Install dependencies: `pip install -r requirements.txt`
-4. Install dev tools: `pip install pytest black pre-commit`
-5. Run tests: `pytest`
+3. Create a virtual environment: `python -m venv .venv`
+4. Activate it: `source .venv/bin/activate`
+5. Install dev dependencies: `python -m pip install -r requirements-dev.txt`
+6. Run tests: `python -m pytest`
 
 ## Coding Style
 - Follow PEP 8.

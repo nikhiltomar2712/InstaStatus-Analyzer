@@ -1,13 +1,32 @@
-version: '3.8'
-
 services:
-  web:
+  dashboard:
     build: .
+    command: streamlit run src/dashboard.py --server.port=8501 --server.address=0.0.0.0
     ports:
       - "8501:8501"
     volumes:
       - ./exports:/app/exports
       - ./sessions:/app/sessions
-    env_file:
-      - .env
+    environment:
+      INSTAGRAM_USERNAME: ${INSTAGRAM_USERNAME:-}
+      INSTAGRAM_PASSWORD: ${INSTAGRAM_PASSWORD:-}
+      SESSION_DIR: /app/sessions
+      RATE_LIMIT_DELAY: ${RATE_LIMIT_DELAY:-0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+
+  api:
+    build: .
+    command: uvicorn src.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./exports:/app/exports
+      - ./sessions:/app/sessions
+    environment:
+      INSTAGRAM_USERNAME: ${INSTAGRAM_USERNAME:-}
+      INSTAGRAM_PASSWORD: ${INSTAGRAM_PASSWORD:-}
+      SESSION_DIR: /app/sessions
+      RATE_LIMIT_DELAY: ${RATE_LIMIT_DELAY:-0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     restart: unless-stopped

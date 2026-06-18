@@ -1,194 +1,150 @@
-# 📊 InstaStatus-Analyzer
+# InstaStatus-Analyzer
 
-**Comprehensive Instagram account analysis: real vs bot followers, engagement metrics, content performance, and more.**
+Instagram account intelligence for engagement metrics, follower-quality scoring,
+demo analysis, exports, a Streamlit dashboard, and a FastAPI service.
 
-[![Stars](https://img.shields.io/github/stars/nikhiltomar2712/InstaStatus-Analyzer?style=social)](https://github.com/nikhiltomar2712/InstaStatus-Analyzer)
-[![Forks](https://img.shields.io/github/forks/nikhiltomar2712/InstaStatus-Analyzer?style=social)](https://github.com/nikhiltomar2712/InstaStatus-Analyzer)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+> This project uses unofficial Instagram tooling when live mode is enabled. Use
+> it responsibly, respect rate limits, and only analyze accounts you are allowed
+> to inspect.
 
----
+## What It Does
 
-## 🚀 Features
+- Scores sampled followers as `real`, `suspicious`, or `bot`.
+- Calculates average likes, comments, engagement rate, reel/video views, and top posts.
+- Runs without credentials in deterministic demo mode.
+- Exports reports as CSV, JSON, and optional PDF.
+- Provides a Typer CLI, Streamlit dashboard, FastAPI API, Docker setup, and CI.
+- Supports optional saved sklearn-style bot models through `BOT_MODEL_PATH`.
 
-- 🔍 **Real vs Fake Follower Detection** – hybrid model (heuristic + ML) flags bots, mass followers, and suspicious accounts.
-- 📈 **Engagement Breakdown** – like count, comments quality, reel/story views (if public).
-- 📋 **Follower Export** – full list with usernames, bios, verification status, follower counts (CSV/JSON/PDF).
-- 🧠 **Bot Detection** – low engagement, generic bios, high following/follower ratio, comment sentiment (Hugging Face), posting patterns.
-- 🖥️ **Multiple Interfaces**:
-  - **CLI** (Rich + Typer) for power users
-  - **Web Dashboard** (Streamlit) for interactive exploration
-  - **REST API** (FastAPI – optional) for integration
-- 🐳 **Docker support** – ready to deploy anywhere.
-- 🔐 **Multi‑account & proxy support** – rotate IPs and manage sessions.
-- ⏱️ **Rate limiting** – respects Instagram’s limits automatically.
-- 📦 **Portable** – Python 3.10+, `pip` or `poetry`.
+## Project Layout
 
----
+```text
+src/
+  analyzer.py       Core metrics and report generation
+  bot_detector.py   Lightweight bot scoring with optional ML model loading
+  sample_data.py    Deterministic demo account data
+  auth.py           Optional Instagrapi login/session handling
+  fetcher.py        Live Instagram data fetching
+  exporter.py       CSV, JSON, and PDF exports
+  cli.py            Command-line interface
+  dashboard.py      Streamlit app
+  api.py            FastAPI app
+scripts/
+  batch_analysis.py Batch JSON report generation
+tests/
+  test_*.py         Unit tests for the lightweight core
+```
 
-## ⚠️ Disclaimer
-
-This tool uses **unofficial** APIs (Instagrapi) and public data scraping.  
-**It may violate Instagram’s Terms of Service**. Use at your own risk.  
-Always respect rate limits, obtain consent when analyzing non‑public data, and do not use for spam or harassment.
-
----
-
-## 📥 Installation
-
-### Prerequisites
-- Python 3.10+
-- Git
-- (Optional) Docker
-
-### Using pip
+## Setup
 
 ```bash
 git clone https://github.com/nikhiltomar2712/InstaStatus-Analyzer.git
 cd InstaStatus-Analyzer
-python -m venv venv
-
-source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-```
-bash
-
-poetry install
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
 ```
 
-Environment Variables
-Copy .env.example to .env and fill in your credentials (optional for public data only).
+For the full local app stack:
+
+```bash
+python -m pip install -r requirements.txt
 ```
-🧪 Quick Start
-CLI
-bash
-# Analyze any public account
-python -m src.cli analyze --username "instagram" --export csv
+
+Optional live Instagram access:
+
+```bash
+cp .env.example .env
+# Fill INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in .env
 ```
-# Batch analysis
-python scripts/batch_analysis.py --input accounts.txt
-Streamlit Dashboard
-bash
+
+## CLI
+
+Demo mode works without Instagram credentials:
+
+```bash
+python -m src.cli analyze instagram --demo --followers 50 --posts 12 --export json
+```
+
+Live mode uses `.env` credentials and falls back to demo data if login is not available:
+
+```bash
+python -m src.cli analyze instagram --followers 100 --posts 12 --export csv
+```
+
+## Dashboard
+
+```bash
 streamlit run src/dashboard.py
-Open http://localhost:8501
+```
 
-FastAPI (optional)
-bash
+Open `http://localhost:8501`.
+
+## API
+
+```bash
 uvicorn src.api:app --reload
-Docs at http://localhost:8000/docs
+```
 
-🧠 Bot Detection Logic
-We combine rule‑based heuristics and a scikit‑learn RandomForest classifier (trained on manually labeled datasets). Features include:
+Useful endpoints:
 
-Engagement rate (likes / followers)
+- `GET /health`
+- `GET /demo/{username}`
+- `POST /analyze`
 
-Follower / following ratio
+Example:
 
-Bio length & presence of keywords (generic)
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"username":"instagram","followers_amount":50,"posts_amount":12,"demo":true}'
+```
 
-Comment sentiment (Hugging Face distilbert-base-uncased-finetuned-sst-2-english)
+## Batch Analysis
 
-Account age & post frequency
+Create a file with one username per line, then run:
 
-Profile picture presence
+```bash
+python scripts/batch_analysis.py accounts.txt --demo --output-dir exports
+```
 
-Output: Confidence score (0–100%) and a “bot / suspicious / real” label.
+## Docker
 
-📁 Export Formats
-csv – full follower list with metadata
+```bash
+docker compose up --build
+```
 
-json – structured for API consumption
+- Dashboard: `http://localhost:8501`
+- API docs: `http://localhost:8000/docs`
 
-pdf – professional report (via ReportLab)
+## Exports
 
-🐳 Docker
-bash
-docker-compose up --build
-Streamlit dashboard will be available at http://localhost:8501.
+Reports are written to `exports/` by default:
 
-🧩 Architecture
-text
-src/
-├── auth.py          # Instagrapi session handling, multi‑account
-├── fetcher.py       # Data collection (followers, posts, stories)
-├── analyzer.py      # Metrics calculation, growth trends
-├── bot_detector.py  # ML / rule‑based bot detection
-├── exporter.py      # CSV, JSON, PDF generation
-├── dashboard.py     # Streamlit web app
-├── cli.py           # Typer CLI
-├── api.py           # FastAPI (optional)
-├── rate_limiter.py  # Decorator for API calls
-└── utils.py         # Helpers, proxy, logging
-🤝 Contributing
-Pull requests are welcome! Please read CONTRIBUTING.md first.
+- CSV follower sample report
+- JSON full analysis report
+- PDF summary report when `reportlab` is installed
 
-📄 License
-MIT © [Nikhil Tomar]
+## Tests
 
-text
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest
+```
 
----
+The test suite intentionally avoids live Instagram calls and external ML model
+downloads.
 
-## 2. `requirements.txt`
-instagrapi>=2.0.0
-selenium>=4.15.0
-rich>=13.0.0
-typer>=0.9.0
-streamlit>=1.28.0
-gradio>=4.0.0
-fastapi>=0.104.0
-uvicorn>=0.24.0
-scikit-learn>=1.3.0
-transformers>=4.35.0
-torch>=2.1.0
-pandas>=2.1.0
-reportlab>=4.0.0
-python-dotenv>=1.0.0
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-webdriver-manager>=4.0.0
-pytest>=7.4.0
-pytest-mock>=3.12.0
+## Environment Variables
 
-text
+See `.env.example` for all options.
 
----
+- `INSTAGRAM_USERNAME` and `INSTAGRAM_PASSWORD`: optional live-mode credentials
+- `SESSION_DIR`: where Instagrapi sessions are stored
+- `RATE_LIMIT_DELAY`: seconds to sleep before live fetch calls
+- `BOT_MODEL_PATH` and `BOT_SCALER_PATH`: optional saved ML model files
 
-## 3. `pyproject.toml`
+## License
 
-```toml
-[tool.poetry]
-name = "instastatus-analyzer"
-version = "0.1.0"
-description = "Instagram Account Intelligence – real vs bot followers, engagement, exports."
-authors = ["Nikhil Tomar <nikhiltomarsan@gmail.com.com>"]
-license = "MIT"
-readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.10"
-instagrapi = "^2.0.0"
-selenium = "^4.15.0"
-rich = "^13.0.0"
-typer = "^0.9.0"
-streamlit = "^1.28.0"
-gradio = "^4.0.0"
-fastapi = "^0.104.0"
-uvicorn = "^0.24.0"
-scikit-learn = "^1.3.0"
-transformers = "^4.35.0"
-torch = "^2.1.0"
-pandas = "^2.1.0"
-reportlab = "^4.0.0"
-python-dotenv = "^1.0.0"
-requests = "^2.31.0"
-beautifulsoup4 = "^4.12.0"
-webdriver-manager = "^4.0.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
-pytest-mock = "^3.12.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+MIT
