@@ -1,83 +1,218 @@
-import re
-import numpy as np
-from transformers import pipeline
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-import pandas as pd
-from typing import List, Dict, Tuple
-import joblib
 import os
+import re
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
+
+
+GENERIC_BIO_TERMS = (
+    "follow for follow",
+    "follow back",
+    "brand ambassador",
+    "dm for promo",
+    "crypto",
+    "investment",
+    "giveaway",
+    "public figure",
+    "model",
+)
+
+POSITIVE_WORDS = {
+    "artist",
+    "builder",
+    "community",
+    "creator",
+    "design",
+    "family",
+    "founder",
+    "learning",
+    "official",
+    "photography",
+    "student",
+}
+
+NEGATIVE_WORDS = {
+    "betting",
+    "cash",
+    "casino",
+    "crypto",
+    "deal",
+    "discount",
+    "earn",
+    "forex",
+    "giveaway",
+    "promo",
+    "winner",
+}
+
+
+@dataclass(frozen=True)
+class FollowerFeatures:
+    follower_count: int
+    following_count: int
+    media_count: int
+    following_to_follower_ratio: float
+    bio_length: int
+    generic_bio_terms: int
+    has_profile_picture: bool
+    is_private: bool
+    username_digit_ratio: float
+
 
 class BotDetector:
-    def __init__(self):
-        self.sentiment_pipeline = pipeline(
-            "sentiment-analysis",
-            model="distilbert-base-uncased-finetuned-sst-2-english",
-            tokenizer="distilbert-base-uncased-finetuned-sst-2-english"
-        )
+    """Score follower quality without requiring heavyweight ML dependencies.
+
+    A saved sklearn-style model can still be used by setting BOT_MODEL_PATH and,
+    optionally, BOT_SCALER_PATH. If no model is configured, the detector falls
+    back to deterministic heuristics that are cheap enough for tests and demos.
+    """
+
+    def __init__(self, model_path: Optional[str] = None, scaler_path: Optional[str] = None):
         self.model = None
-        self.scaler = StandardScaler()
-        self._load_or_train_model()
+        self.scaler = None
+        self.model_path = model_path or os.getenv("BOT_MODEL_PATH")
+        self.scaler_path = scaler_path or os.getenv("BOT_SCALER_PATH")
+        if self.model_path:
+            self._load_model()
 
-    def _load_or_train_model(self):
-        """Placeholder: load pre-trained model if exists, else train a dummy model."""
-        if os.path.exists("bot_model.pkl"):
-            self.model = joblib.load("bot_model.pkl")
-            self.scaler = joblib.load("scaler.pkl")
-        else:
-            # Train a tiny dummy model (will be replaced by real training)
-            X = np.array([
-                [0.1, 0.2, 1, 0.5, 0],
-                [0.8, 10, 0.1, 0.1, 1],
-                [0.3, 1.5, 2, 0.3, 0],
-                [0.6, 5, 0.2, 0.05, 1],
-            ])
-            y = np.array([0, 1, 0, 1])  # 0=real, 1=bot
-            self.scaler.fit(X)
-            X_scaled = self.scaler.transform(X)
-            self.model = RandomForestClassifier(n_estimators=10, random_state=42)
-            self.model.fit(X_scaled, y)
+    def _load_model(self) -> None:
+        try:
+            import joblib
+        except ImportError:
+            return
 
-    def extract_features(self, follower: Dict, user_info: Dict) -> np.ndarray:
-        bio = follower.get("biography", "")
-        follower_count = follower.get("follower_count", 0) or 0
-        following_count = follower.get("following_count", 0) or 0
+        if not self.model_path or not os.path.exists(self.model_path):
+            return
 
-        # Follower/following ratio
-        if following_count > 0:
-            ratio = follower_count / following_count
-        else:
-            ratio = 10  # high value if following=0
+        self.model = joblib.load(self.model_path)
+        if self.scaler_path and os.path.exists(self.scaler_path):
+            self.scaler = joblib.load(self.scaler_path)
 
-        # Bio length and generic indicators
-        bio_len = len(bio)
-        generic_words = ["follow", "model", "brand ambassador", "public figure"]
-        generic_count = sum(1 for w in generic_words if w.lower() in bio.lower())
+    def extract_features(self, follower: Dict, user_info: Optional[Dict] = None) -> FollowerFeatures:
+        username = str(follower.get("username", "") or "")
+        bio = str(follower.get("biography", "") or "")
+        follower_count = self._as_int(follower.get("follower_count"))
+        following_count = self._as_int(follower.get("following_count"))
+        media_count = self._as_int(follower.get("media_count"))
+        denominator = max(follower_count, 1)
+        ratio = following_count / denominator
+        digits = sum(1 for char in username if char.isdigit())
+        username_digit_ratio = digits / len(username) if username else 0.0
+        generic_terms = sum(1 for term in GENERIC_BIO_TERMS if term in bio.lower())
 
-        # Profile pic presence (simple check based on URL, assuming None means no pic)
-        has_pic = 1 if follower.get("profile_pic_url") else 0
+        return FollowerFeatures(
+            follower_count=follower_count,
+            following_count=following_count,
+            media_count=media_count,
+            following_to_follower_ratio=ratio,
+            bio_length=len(bio.strip()),
+            generic_bio_terms=generic_terms,
+            has_profile_picture=bool(follower.get("profile_pic_url")),
+            is_private=bool(follower.get("is_private")),
+            username_digit_ratio=username_digit_ratio,
+        )
 
-        # Account privacy (private = less likely bot? but we include)
-        is_private = 1 if follower.get("is_private") else 0
-
-        return np.array([ratio, bio_len, generic_count, has_pic, is_private])
-
-    def analyze_follower(self, follower: Dict, user_info: Dict) -> Tuple[float, str]:
+    def analyze_follower(self, follower: Dict, user_info: Optional[Dict] = None) -> Tuple[float, str]:
         features = self.extract_features(follower, user_info)
-        features_scaled = self.scaler.transform([features])
-        prob = self.model.predict_proba(features_scaled)[0]
-        bot_prob = prob[1] * 100  # probability of class 1 (bot)
-        if bot_prob > 70:
+
+        if self.model is not None:
+            probability = self._model_probability(features)
+        else:
+            probability = self._heuristic_probability(features)
+
+        if probability >= 70:
             label = "bot"
-        elif bot_prob > 30:
+        elif probability >= 35:
             label = "suspicious"
         else:
             label = "real"
-        return bot_prob, label
+        return round(probability, 2), label
 
     def sentiment_score(self, text: str) -> float:
-        if not text or len(text) < 3:
-            return 0.5  # neutral if no text
-        result = self.sentiment_pipeline(text[:512])[0]  # truncate
-        score = result['score'] if result['label'] == 'POSITIVE' else 1 - result['score']
-        return score
+        """Return a lightweight 0..1 bio quality score.
+
+        This is intentionally not a full sentiment model. It gives the analyzer
+        a stable signal without downloading external model weights at import
+        time.
+        """
+
+        words = set(re.findall(r"[a-zA-Z]+", (text or "").lower()))
+        if not words:
+            return 0.5
+
+        positive_hits = len(words & POSITIVE_WORDS)
+        negative_hits = len(words & NEGATIVE_WORDS)
+        score = 0.5 + (positive_hits * 0.08) - (negative_hits * 0.12)
+        return round(min(max(score, 0.0), 1.0), 3)
+
+    def _model_probability(self, features: FollowerFeatures) -> float:
+        vector = [[
+            features.follower_count,
+            features.following_count,
+            features.media_count,
+            features.following_to_follower_ratio,
+            features.bio_length,
+            features.generic_bio_terms,
+            int(features.has_profile_picture),
+            int(features.is_private),
+            features.username_digit_ratio,
+        ]]
+        if self.scaler is not None:
+            vector = self.scaler.transform(vector)
+
+        if hasattr(self.model, "predict_proba"):
+            probabilities = self.model.predict_proba(vector)[0]
+            return float(probabilities[-1] * 100)
+
+        prediction = self.model.predict(vector)[0]
+        return 100.0 if int(prediction) == 1 else 0.0
+
+    @staticmethod
+    def _heuristic_probability(features: FollowerFeatures) -> float:
+        score = 8.0
+
+        if features.following_to_follower_ratio >= 10:
+            score += 30
+        elif features.following_to_follower_ratio >= 5:
+            score += 22
+        elif features.following_to_follower_ratio >= 2.5:
+            score += 12
+
+        if features.follower_count < 25 and features.following_count > 250:
+            score += 18
+        elif features.follower_count < 100 and features.following_count > 800:
+            score += 14
+
+        if features.media_count == 0 and features.follower_count < 150:
+            score += 12
+
+        if not features.has_profile_picture:
+            score += 14
+
+        if features.bio_length == 0:
+            score += 7
+        elif features.bio_length > 35:
+            score -= 4
+
+        score += min(features.generic_bio_terms * 9, 24)
+
+        if features.username_digit_ratio >= 0.45:
+            score += 12
+        elif features.username_digit_ratio >= 0.3:
+            score += 6
+
+        if features.is_private:
+            score -= 3
+
+        if features.follower_count > 500 and features.has_profile_picture and features.bio_length > 20:
+            score -= 10
+
+        return min(max(score, 0.0), 100.0)
+
+    @staticmethod
+    def _as_int(value) -> int:
+        try:
+            if value is None:
+                return 0
+            return max(int(value), 0)
+        except (TypeError, ValueError):
+            return 0
