@@ -1,63 +1,101 @@
-import streamlit as st
 import pandas as pd
-from src.auth import AuthManager
-from src.fetcher import InstagramFetcher
-from src.analyzer import AccountAnalyzer
-from src.exporter import export_csv, export_json, export_pdf
 import plotly.express as px
+import streamlit as st
+
+from src.analyzer import AccountAnalyzer
+from src.auth import AuthManager
+from src.exporter import export_csv, export_json, export_pdf
+from src.fetcher import InstagramFetcher
+from src.sample_data import build_demo_account
+
 
 st.set_page_config(page_title="InstaStatus Analyzer", layout="wide")
+st.title("InstaStatus Analyzer")
 
-st.title("📊 InstaStatus Analyzer")
-username = st.text_input("Enter Instagram username (public):")
+with st.sidebar:
+    username = st.text_input("Instagram username", value="instagram")
+    followers_amount = st.slider("Followers to sample", min_value=0, max_value=500, value=50, step=10)
+    posts_amount = st.slider("Posts to analyze", min_value=0, max_value=50, value=12, step=1)
+    demo_mode = st.toggle("Demo mode", value=True)
+    analyze_clicked = st.button("Analyze", type="primary")
 
-if st.button("Analyze"):
-    with st.spinner("Fetching data..."):
-        auth = AuthManager()
-        client = auth.login() if auth.username else None
-        fetcher = InstagramFetcher(client) if client else InstagramFetcher(None)
-        analyzer = AccountAnalyzer()
 
-        # For public demo we use dummy data if no login
-        if client:
-            data = fetcher.fetch_account_data(username, followers_amount=50, posts_amount=12)
-        else:
-            st.warning("No login credentials. Using demo data.")
-            data = {
-                "user_info": {"username": username, "follower_count": 1000, "following_count": 500, "biography": "Demo"},
-                "followers": [{"username": f"user{i}", "biography": "", "follower_count": 100, "following_count": 1000, "is_private": False, "profile_pic_url": ""} for i in range(50)],
-                "posts": [{"like_count": i*10, "comment_count": i, "code": "xyz", "media_type":1, "view_count":0} for i in range(1,13)]
-            }
-        result = analyzer.analyze(data)
+def load_data():
+    if demo_mode:
+        return build_demo_account(username, followers_amount, posts_amount)
 
-    # Display
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Real Followers", result["follower_quality"]["real_count"])
-    col2.metric("Suspicious", result["follower_quality"]["suspicious_count"])
-    col3.metric("Bots", result["follower_quality"]["bot_count"])
+    auth = AuthManager()
+    client = auth.login()
+    fetcher = InstagramFetcher(client)
+    return fetcher.fetch_account_data(username, followers_amount=followers_amount, posts_amount=posts_amount)
 
-    st.subheader("Engagement")
-    st.write(f"Engagement Rate: {result['engagement']['engagement_rate_percent']}%")
 
-    # Pie chart
-    labels = ['Real','Suspicious','Bot']
-    values = [result["follower_quality"]["real_count"],
-              result["follower_quality"]["suspicious_count"],
-              result["follower_quality"]["bot_count"]]
-    fig = px.pie(names=labels, values=values, title="Follower Distribution")
-    st.plotly_chart(fig)
+if analyze_clicked:
+    if not username.strip():
+        st.warning("Enter a username to analyze.")
+        st.stop()
 
-    # Top posts
-    st.subheader("Top Posts")
-    st.table(pd.DataFrame(result["top_posts"]))
+    try:
+        with st.spinner("Analyzing account..."):
+            data = load_data()
+            st.session_state.analysis_result = AccountAnalyzer().analyze(data)
+    except Exception as exc:
+        st.error(f"Unable to analyze account: {exc}")
 
-    # Export
-    if st.button("Export CSV"):
-        export_csv(result["follower_details"])
-        st.success("CSV exported to exports/ folder")
-    if st.button("Export JSON"):
-        export_json(result)
-        st.success("JSON exported")
-    if st.button("Export PDF"):
-        export_pdf(result)
-        st.success("PDF exported")
+result = st.session_state.get("analysis_result")
+if not result:
+    result = AccountAnalyzer().analyze(build_demo_account(username, followers_amount, posts_amount))
+
+user = result["user_info"]
+engagement = result["engagement"]
+quality = result["follower_quality"]
+content = result["content_summary"]
+
+metric_columns = st.columns(5)
+metric_columns[0].metric("Followers", f"{user.get('follower_count', 0):,}")
+metric_columns[1].metric("Engagement", f"{engagement['engagement_rate_percent']}%")
+metric_columns[2].metric("Real", quality["real_count"])
+metric_columns[3].metric("Suspicious", quality["suspicious_count"])
+metric_columns[4].metric("Bots", quality["bot_count"])
+
+left, right = st.columns([1, 1])
+
+with left:
+    st.subheader("Follower Quality")
+    distribution = pd.DataFrame(
+        [
+            {"Label": "Real", "Count": quality["real_count"]},
+            {"Label": "Suspicious", "Count": quality["suspicious_count"]},
+            {"Label": "Bot", "Count": quality["bot_count"]},
+        ]
+    )
+    st.plotly_chart(px.pie(distribution, names="Label", values="Count"), use_container_width=True)
+
+with right:
+    st.subheader("Content Mix")
+    mix = pd.DataFrame(
+        [
+            {"Type": "Photos", "Count": content["photos"]},
+            {"Type": "Videos", "Count": content["videos"]},
+            {"Type": "Carousels", "Count": content["carousels"]},
+            {"Type": "Other", "Count": content["other"]},
+        ]
+    )
+    st.plotly_chart(px.bar(mix, x="Type", y="Count"), use_container_width=True)
+
+st.subheader("Top Posts")
+st.dataframe(pd.DataFrame(result["top_posts"]), use_container_width=True)
+
+st.subheader("Follower Sample")
+st.dataframe(pd.DataFrame(result["follower_details"]), use_container_width=True)
+
+export_columns = st.columns(3)
+if export_columns[0].button("Export CSV"):
+    st.success(f"Saved {export_csv(result['follower_details'])}")
+if export_columns[1].button("Export JSON"):
+    st.success(f"Saved {export_json(result)}")
+if export_columns[2].button("Export PDF"):
+    try:
+        st.success(f"Saved {export_pdf(result)}")
+    except RuntimeError as exc:
+        st.error(str(exc))
